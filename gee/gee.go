@@ -1,7 +1,6 @@
 package gee
 
 import (
-	"fmt"
 	"net/http"
 )
 
@@ -58,21 +57,21 @@ import (
 
  */
 
-type HandlerFunc func(w http.ResponseWriter, r *http.Request)
+type HandlerFunc func(*Context)
 
 type Engine struct {
-	router map[string]HandlerFunc
+	router *router
 }
 
 func New() *Engine {
 	engine := &Engine{
-		router: make(map[string]HandlerFunc),
+		router: newRouter(),
 	}
 	return engine
 }
 
 func (e *Engine) addRoute(method string, pattern string, handler HandlerFunc) {
-	e.router[fmt.Sprintf("%s-%s", method, pattern)] = handler
+	e.router.addRoute(method, pattern, handler)
 }
 
 func (e *Engine) GET(pattern string, handler HandlerFunc) {
@@ -83,14 +82,11 @@ func (e *Engine) POST(pattern string, handler HandlerFunc) {
 	e.addRoute(http.MethodPost, pattern, handler)
 }
 
+// ServeHTTP 路由入口执行函数
 func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	key := r.Method + "-" + r.URL.Path
-	handler, ok := e.router[key]
-	if !ok {
-		http.Error(w, key+": not found", http.StatusNotFound)
-		return
-	}
-	handler(w, r)
+	// 构造 Context 上下文
+	c := newContext(w, r)
+	e.router.handle(c)
 }
 
 func (e *Engine) Run(addr string) error {
