@@ -2,7 +2,7 @@ package main
 
 import (
 	"encoding/json"
-	"everyday-go/dotenv/dotenv/config"
+	"everyday-go/dotenv/config"
 	"fmt"
 )
 
