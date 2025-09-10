@@ -10,23 +10,30 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 type application struct {
 	port   int
 	dsn    string
+	store  Store
 	logger *slog.Logger
 }
 
+// 运行，如：go run . -dsn=./sqlite3/xxx.sqlite
 func main() {
 	var app application
 
 	app.logger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	slog.SetDefault(app.logger)
 
-	flag.IntVar(&app.port, "port", 6000, "服务端口")
-	flag.StringVar(&app.dsn, "dsn", "./db.sqlite", "sqlite3 数据库")
+	flag.IntVar(&app.port, "port", 6001, "服务端口")
+	flag.StringVar(&app.dsn, "dsn", "./sqlite3/db.sqlite", "sqlite3 数据库")
 	flag.Parse()
+
+	app.store = NewStore(app.dsn)
+
+	app.store.CreateTable()
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf("0.0.0.0:%d", app.port),
@@ -37,6 +44,8 @@ func main() {
 		WriteTimeout: 30 * time.Second,
 	}
 
+	slog.Info("start server on " + srv.Addr)
+
 	if err := srv.ListenAndServe(); err != nil {
 		log.Fatalln("server stop: " + err.Error())
 	}
@@ -45,14 +54,14 @@ func main() {
 func (app *application) routes() http.Handler {
 	mux := chi.NewRouter()
 	mux.Use(app.recoverPanic)
+	mux.Use(middleware.Logger)
 	mux.Use(app.enableCORS)
 
-	mux.Post("/save", app.saveHandler)
-	mux.Get("/get", app.getHandler)
+	mux.Post("/get", app.getHandler)   // 获取
+	mux.Post("/save", app.saveHandler) // 添加
 
-	return mux
-}
+	router := chi.NewRouter()
+	router.Mount("/v1", mux)
 
-func (app *application) serverError(w http.ResponseWriter, r *http.Request, err error) {
-	http.Error(w, err.Error(), http.StatusInternalServerError)
+	return router
 }
